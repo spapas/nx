@@ -888,11 +888,16 @@ defmodule Torchx.Backend do
   #     |> to_nx(out)
   #   end
 
-  defp bitmask({_, 8}), do: Torchx.scalar_tensor(0xFF, :byte, :cpu)
-  defp bitmask({_, 16}), do: Torchx.scalar_tensor(0xFFFF, :int, :cpu)
-  defp bitmask({_, 32}), do: Torchx.scalar_tensor(0xFFFFFFFF, :long, :cpu)
-  defp bitmask({:u, 64}), do: Torchx.scalar_tensor(0xFFFFFFFF, :long, :cpu)
-  defp bitmask({:s, 64}), do: Torchx.scalar_tensor(0xFFFFFFFFFFFFFFFF, :long, :cpu)
+  defp bitmask(tensor, {:u, 16}),
+    do: Torchx.bitwise_and(tensor, Torchx.scalar_tensor(0xFFFF, :int, :cpu))
+
+  defp bitmask(tensor, {:u, 32}),
+    do: Torchx.bitwise_and(tensor, Torchx.scalar_tensor(0xFFFFFFFF, :long, :cpu))
+
+  defp bitmask(tensor, {:u, 64}),
+    do: Torchx.bitwise_and(tensor, Torchx.scalar_tensor(0xFFFFFFFF, :long, :cpu))
+
+  defp bitmask(tensor, _), do: tensor
 
   defp maybe_upcast(%T{type: t} = left, %T{type: t} = right),
     do: {left, right}
@@ -1752,11 +1757,9 @@ defmodule Torchx.Backend do
   def from_nx(%T{type: {:u, 8}} = tensor), do: Nx.backend_transfer(tensor, TB) |> from_nx()
 
   def from_nx(%T{type: {:u, _}} = tensor) do
-    mask = bitmask(tensor.type)
-
     Nx.backend_transfer(tensor, TB)
     |> from_nx()
-    |> Torchx.bitwise_and(mask)
+    |> bitmask(tensor.type)
   end
 
   def from_nx(%T{} = tensor), do: Nx.backend_transfer(tensor, TB) |> from_nx()
@@ -1775,10 +1778,7 @@ defmodule Torchx.Backend do
       else
         device_ref
       end
-
-    mask = bitmask(type)
-
-    t_tx = Torchx.bitwise_and(t_tx, mask)
+      |> bitmask(type)
 
     %{t | data: %__MODULE__{ref: check_shape_and_type!(t_tx, shape, type)}}
   end
