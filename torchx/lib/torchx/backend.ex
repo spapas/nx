@@ -199,7 +199,16 @@ defmodule Torchx.Backend do
 
   @impl true
   def to_binary(tensor, limit) do
-    Torchx.to_blob(from_nx(tensor), limit)
+    blob = Torchx.to_blob(from_nx(tensor), limit)
+
+    {size, out_size} =
+      case tensor.type do
+        {:u, 16} -> {32, 16}
+        {:u, 32} -> {64, 32}
+        {_, s} -> {s, s}
+      end
+
+    for <<x::size(size)-native <- blob>>, into: <<>>, do: <<x::size(out_size)-native>>
   end
 
   @impl true
@@ -826,6 +835,64 @@ defmodule Torchx.Backend do
       |> to_nx(out)
     end
   end
+
+  #   @impl true
+  #   def right_shift(out, l, r) do
+  #     {left, right} = maybe_upcast(l, r)
+
+  #     {left_tx, right_tx} = maybe_broadcast_bin_args(out.shape, left, right)
+
+  #     mask = bitmask(out.type)
+
+  #     # left_tx = 0xF.....F
+  #     # right_tx = 10
+  #     # out -> 0b000000000011...1 (10 0s + 54 1s)
+
+  #     # left_tx &&& mask -> 0x00000000FFFFFFFF
+  #     # out -> 0b0000000000 + 32 0s + 22 1s
+  #     result =
+  #       Torchx.right_shift(
+  #         left_tx |> Torchx.bitwise_and(mask),
+  #         right_tx |> Torchx.bitwise_and(mask)
+  #       )
+
+  #     result
+  #     |> Torchx.bitwise_and(mask)
+  #     |> Torchx.to_type(to_torch_type(out.type))
+  #     |> to_nx(out)
+  #   end
+
+  #   @impl true
+  #   def left_shift(out, l, r) do
+  #     {left, right} = maybe_upcast(l, r)
+
+  #     {left_tx, right_tx} = maybe_broadcast_bin_args(out.shape, left, right)
+
+  #     mask = bitmask(out.type)
+  # |> Torchx.bitwise_and(mask)
+  #     # left_tx = 0xF.....F
+  #     # right_tx = 10
+  #     # out -> 0b000000000011...1 (10 0s + 54 1s)
+
+  #     # left_tx &&& mask -> 0x00000000FFFFFFFF
+  #     # out -> 0b0000000000 + 32 0s + 22 1s
+  #     result =
+  #       Torchx.left_shift(
+  #         left_tx |> Torchx.bitwise_and(mask),
+  #         right_tx |> Torchx.bitwise_and(mask)
+  #       )
+
+  #     result
+  #     |> Torchx.bitwise_and(mask)
+  #     |> Torchx.to_type(to_torch_type(out.type))
+  #     |> to_nx(out)
+  #   end
+
+  defp bitmask({_, 8}), do: Torchx.scalar_tensor(0xFF, :byte, :cpu)
+  defp bitmask({_, 16}), do: Torchx.scalar_tensor(0xFFFF, :int, :cpu)
+  defp bitmask({_, 32}), do: Torchx.scalar_tensor(0xFFFFFFFF, :long, :cpu)
+  defp bitmask({:u, 64}), do: Torchx.scalar_tensor(0xFFFFFFFF, :long, :cpu)
+  defp bitmask({:s, 64}), do: Torchx.scalar_tensor(0xFFFFFFFFFFFFFFFF, :long, :cpu)
 
   defp maybe_upcast(%T{type: t} = left, %T{type: t} = right),
     do: {left, right}
@@ -1649,18 +1716,18 @@ defmodule Torchx.Backend do
   def inspect(%T{} = tensor, inspect_opts) do
     limit = if inspect_opts.limit == :infinity, do: :infinity, else: inspect_opts.limit + 1
 
-    type =
-      case tensor.type do
-        {:u, 8} -> {:u, 8}
-        {:u, 16} -> {:s, 32}
-        {:u, 32} -> {:s, 64}
-        {:u, 64} -> {:s, 64}
-        t -> t
-      end
+    # type =
+    #   case tensor.type do
+    #     {:u, 8} -> {:u, 8}
+    #     {:u, 16} -> {:s, 32}
+    #     {:u, 32} -> {:s, 64}
+    #     {:u, 64} -> {:s, 64}
+    #     t -> t
+    #   end
 
     tensor
     |> to_binary(min(limit, Nx.size(tensor)))
-    |> then(&Nx.Backend.inspect(%{tensor | type: type}, &1, inspect_opts))
+    |> then(&Nx.Backend.inspect(tensor, &1, inspect_opts))
     |> maybe_add_signature(tensor)
   end
 
@@ -1682,6 +1749,16 @@ defmodule Torchx.Backend do
 
   @doc false
   def from_nx(%T{data: %TB{ref: device_ref}}), do: device_ref
+  def from_nx(%T{type: {:u, 8}} = tensor), do: Nx.backend_transfer(tensor, TB) |> from_nx()
+
+  def from_nx(%T{type: {:u, _}} = tensor) do
+    mask = bitmask(tensor.type)
+
+    Nx.backend_transfer(tensor, TB)
+    |> from_nx()
+    |> Torchx.bitwise_and(mask)
+  end
+
   def from_nx(%T{} = tensor), do: Nx.backend_transfer(tensor, TB) |> from_nx()
 
   @doc false
@@ -1698,6 +1775,10 @@ defmodule Torchx.Backend do
       else
         device_ref
       end
+
+    mask = bitmask(type)
+
+    t_tx = Torchx.bitwise_and(t_tx, mask)
 
     %{t | data: %__MODULE__{ref: check_shape_and_type!(t_tx, shape, type)}}
   end
