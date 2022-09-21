@@ -819,7 +819,7 @@ defmodule Torchx.Backend do
 
   binary_ops =
     [:add, :subtract, :multiply, :power, :remainder, :divide, :min, :max, :quotient] ++
-      [:left_shift, :right_shift, :atan2] ++
+      [:left_shift, :atan2] ++
       [:equal, :not_equal, :greater, :less, :greater_equal, :less_equal] ++
       [:logical_and, :logical_or, :logical_xor]
 
@@ -836,31 +836,23 @@ defmodule Torchx.Backend do
     end
   end
 
-  #   @impl true
-  #   def right_shift(out, l, r) do
-  #     {left, right} = maybe_upcast(l, r)
+  @impl true
+  def right_shift(out, l, r) do
+    {left, right} = maybe_upcast(l, r)
 
-  #     {left_tx, right_tx} = maybe_broadcast_bin_args(out.shape, left, right)
+    {left_tx, right_tx} = maybe_broadcast_bin_args(out.shape, left, right)
 
-  #     mask = bitmask(out.type)
+    result =
+      Torchx.right_shift(
+        left_tx |> bitmask(left.type),
+        right_tx |> bitmask(left.type)
+      )
 
-  #     # left_tx = 0xF.....F
-  #     # right_tx = 10
-  #     # out -> 0b000000000011...1 (10 0s + 54 1s)
-
-  #     # left_tx &&& mask -> 0x00000000FFFFFFFF
-  #     # out -> 0b0000000000 + 32 0s + 22 1s
-  #     result =
-  #       Torchx.right_shift(
-  #         left_tx |> Torchx.bitwise_and(mask),
-  #         right_tx |> Torchx.bitwise_and(mask)
-  #       )
-
-  #     result
-  #     |> Torchx.bitwise_and(mask)
-  #     |> Torchx.to_type(to_torch_type(out.type))
-  #     |> to_nx(out)
-  #   end
+    result
+    |> bitmask(out.type)
+    |> Torchx.to_type(to_torch_type(out.type))
+    |> to_nx(out)
+  end
 
   #   @impl true
   #   def left_shift(out, l, r) do
