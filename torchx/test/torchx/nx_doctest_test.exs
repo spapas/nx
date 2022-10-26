@@ -47,11 +47,31 @@ defmodule Torchx.NxDoctestTest do
     reduce: 4
   ]
 
+  @mps_doctests (if Torchx.default_device() == :mps do
+                   [
+                     atan: 1,
+                     concatenate: 2,
+                     power: 2,
+                     floor: 1,
+                     window_sum: 3,
+                     dot: 2,
+                     window_product: 3,
+                     quotient: 2,
+                     sinh: 1,
+                     is_infinity: 1,
+                     window_max: 3,
+                     dot: 6
+                   ]
+                 else
+                   []
+                 end)
+
   doctest Nx,
     except:
       @rounding_error_doctests
       |> Kernel.++(@os_rounding_error_doctests)
       |> Kernel.++(@inherently_unsupported_doctests)
       |> Kernel.++(@unrelated_doctests)
+      |> Kernel.++(@mps_doctests)
       |> Kernel.++([:moduledoc])
 end

@@ -198,7 +198,7 @@ defmodule Torchx do
   via the application environment by setting the
   `:default_device` option under the `:torchx` application.
   """
-  @default_devices [:cuda]
+  @default_devices [:cuda, :mps]
   def default_device do
     case Application.fetch_env(:torchx, :default_device) do
       {:ok, device} ->

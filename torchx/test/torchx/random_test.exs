@@ -1,7 +1,9 @@
 defmodule Torchx.Nx.RandomTest do
   use Torchx.Case, async: true
 
-  doctest Nx.Random, except: [normal: 2, normal: 4]
+  doctest Nx.Random, except: [normal: 2, normal: 4], tags: [skip_mps: :cpu_fallback]
+
+  @moduletag skip_mps: :cpu_fallback
 
   describe "key/1" do
     test "transforms given integer into PRNG key" do
@@ -229,6 +231,7 @@ defmodule Torchx.Nx.RandomTest do
       )
     end
 
+    @tag skip_mps: :double_overflow
     test "randint variance property" do
       property_case(:randint_split,
         args: [Nx.tensor(10), Nx.tensor(95), [shape: {10000}]],

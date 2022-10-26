@@ -1640,6 +1640,7 @@ defmodule EXLA.Defn.ExprTest do
     end
 
     @tag :unsupported_64_bit_op
+    @tag skip_mps: :type_not_supported
     test "window_scatter_max produces the same result as Nx with no padding" do
       x =
         Nx.tensor([

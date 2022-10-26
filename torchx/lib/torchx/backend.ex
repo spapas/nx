@@ -83,28 +83,63 @@ defmodule Torchx.Backend do
   end
 
   def iota(%T{shape: shape, type: type} = out, nil, backend_options) do
+    torch_type = to_torch_type(type)
+
+    device_option = device_option(backend_options)
+
+    arange_type =
+      case {torch_type, device_option} do
+        {:byte, :mps} -> :int
+        _ -> torch_type
+      end
+
     Torchx.arange(
       0,
       Nx.size(shape),
       1,
-      to_torch_type(type),
-      device_option(backend_options),
+      arange_type,
+      device_option,
       shape
     )
+    |> Torchx.to_type(torch_type)
     |> to_nx(out)
   end
 
   @impl true
   def iota(%T{shape: {n}, type: type} = out, 0, backend_options) do
-    Torchx.arange(0, n, 1, to_torch_type(type), device_option(backend_options)) |> to_nx(out)
+    torch_type = to_torch_type(type)
+
+    device_option = device_option(backend_options)
+
+    arange_type =
+      case {torch_type, device_option} do
+        {:byte, :mps} -> :int
+        _ -> torch_type
+      end
+
+    Torchx.arange(0, n, 1, arange_type, device_option)
+    |> Torchx.to_type(torch_type)
+    |> to_nx(out)
   end
 
   def iota(%T{shape: shape, type: type} = out, axis, backend_options) do
     # gets the size of iota
     dim = elem(shape, axis)
 
+    torch_type = to_torch_type(type)
+
+    device_option = device_option(backend_options)
+
+    arange_type =
+      case {torch_type, device_option} do
+        {:byte, :mps} -> :int
+        _ -> torch_type
+      end
+
     # build the iota in one dimension
-    aten = Torchx.arange(0, dim, 1, to_torch_type(type), device_option(backend_options))
+    aten =
+      Torchx.arange(0, dim, 1, arange_type, device_option)
+      |> Torchx.to_type(torch_type)
 
     # reshape the tensor above to be have shape where everything is 1, except for dim
     reshape = Tuple.duplicate(1, Nx.rank(shape)) |> put_elem(axis, dim)
@@ -1834,12 +1869,37 @@ defmodule Torchx.Backend do
   defp to_torch_type({:s, 16}, _), do: :short
   defp to_torch_type({:s, 32}, _), do: :int
   defp to_torch_type({:s, 64}, _), do: :long
-  defp to_torch_type({:bf, 16}, _), do: :brain
+
+  defp to_torch_type({:bf, 16}, _) do
+    case Torchx.default_device() do
+      :mps -> raise "type {:bf, 16} not supported on MPS device"
+      _ -> :brain
+    end
+  end
+
   defp to_torch_type({:f, 16}, _), do: :half
   defp to_torch_type({:f, 32}, _), do: :float
-  defp to_torch_type({:f, 64}, _), do: :double
-  defp to_torch_type({:c, 64}, _), do: :complex
-  defp to_torch_type({:c, 128}, _), do: :complex_double
+
+  defp to_torch_type({:f, 64}, _) do
+    case Torchx.default_device() do
+      :mps -> raise "type {:f, 64} not supported on MPS device"
+      _ -> :double
+    end
+  end
+
+  defp to_torch_type({:c, 64}, _) do
+    case Torchx.default_device() do
+      :mps -> raise "type {:c, 64} not supported on MPS device"
+      _ -> :complex
+    end
+  end
+
+  defp to_torch_type({:c, 128}, _) do
+    case Torchx.default_device() do
+      :mps -> raise "type {:c, 128} not supported on MPS device"
+      _ -> :complex_double
+    end
+  end
 
   if Application.compile_env(:torchx, :check_shape_and_type, false) do
     defp check_shape_and_type!(device_ref, shape, type) do

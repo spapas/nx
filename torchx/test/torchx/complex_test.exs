@@ -7,11 +7,12 @@ defmodule Torchx.ComplexTest do
 
   import Nx, only: :sigils
 
+  @moduletag skip_mps: :double_overflow
+
   @arg Complex.new(2, 3)
   @arg2 Complex.new(-2, 7)
 
   describe "creation" do
-    @tag :focus
     test "constant" do
       t = Nx.tensor(@arg)
       assert {:c, 64} == t.type
@@ -38,6 +39,7 @@ defmodule Torchx.ComplexTest do
       assert_all_close(Nx.exp(@arg), Complex.new(-7.315, 1.042))
     end
 
+    @tag skip_mps: :double_overflow
     test "expm1" do
       assert_raise ArithmeticError, "Torchx does not support complex values for expm1", fn ->
         Nx.expm1(@arg)
@@ -70,6 +72,7 @@ defmodule Torchx.ComplexTest do
       assert_all_close(Nx.tan(@arg), Complex.new(-0.00376, 1.00323))
     end
 
+    @tag skip_mps: :double_overflow
     test "cosh" do
       assert_all_close(Nx.cosh(@arg), Complex.new(-3.72454, 0.51182))
     end
@@ -94,6 +97,7 @@ defmodule Torchx.ComplexTest do
       assert_all_close(Nx.atan(@arg), Complex.new(1.40992, 0.22907))
     end
 
+    @tag skip_mps: :double_overflow
     test "acosh" do
       assert_all_close(Nx.acosh(@arg), Complex.new(1.9833, 1.0001))
     end
@@ -119,6 +123,7 @@ defmodule Torchx.ComplexTest do
     end
 
     for fun <- [:erf, :erfc, :erf_inv, :round, :floor, :ceil] do
+      @tag skip_mps: :double_overflow
       test "#{fun}" do
         assert_raise ArgumentError, "Nx.#{unquote(fun)}/1 does not support complex inputs", fn ->
           Nx.unquote(fun)(@arg)
@@ -142,6 +147,7 @@ defmodule Torchx.ComplexTest do
   end
 
   describe "binary operations" do
+    @tag skip_mps: :double_overflow
     test "add" do
       assert_all_close(Nx.add(@arg, @arg2), Complex.new(0, 10))
     end
@@ -150,6 +156,7 @@ defmodule Torchx.ComplexTest do
       assert_all_close(Nx.subtract(@arg, @arg2), Complex.new(4, -4))
     end
 
+    @tag skip_mps: :double_overflow
     test "multiply" do
       assert_all_close(Nx.multiply(@arg, @arg2), Complex.new(-25, 8))
     end
@@ -201,9 +208,9 @@ defmodule Torchx.ComplexTest do
     end
   end
 
-  describe "LinAlg not yet implemented" do
+  describe "LinAlg" do
     for function <- [:svd] do
-      test "#{function}" do
+      test "#{function} not yet implemented" do
         t = Nx.broadcast(Nx.tensor(1, type: {:c, 64}), {3, 3})
 
         assert_raise ArgumentError,
@@ -214,6 +221,7 @@ defmodule Torchx.ComplexTest do
       end
     end
 
+    @tag skip_mps: :double_overflow
     test "invert" do
       a = ~M[
         1 0 i
@@ -250,6 +258,7 @@ defmodule Torchx.ComplexTest do
     end
   end
 
+  @tag skip_mps: :double_overflow
   describe "matrix_power" do
     test "supports complex with positive exponent" do
       a = ~M[

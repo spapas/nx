@@ -55,6 +55,11 @@ defmodule Torchx.NxTest do
         type_b <- @types,
         not (op in (@ops_unimplemented_for_bfloat ++ @ops_with_bfloat_specific_result) and
                Nx.Type.merge(type_a, type_b) == {:bf, 16}) do
+      if Nx.Type.merge(type_a, type_b) in [bf: 16, f: 64, c: 64, c: 128] and
+           Torchx.default_device() == :mps do
+        @tag skip_mps: :type_not_supported
+      end
+
       test "#{op}(#{Nx.Type.to_string(type_a)}, #{Nx.Type.to_string(type_b)})" do
         op = unquote(op)
         type_a = unquote(type_a)
@@ -1064,6 +1069,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag skip_mps: :type_not_supported
     test "works with non-default options" do
       t = Nx.tensor([[[4, 2, 1, 3], [4, 2, 1, 7]], [[1, 2, 5, 7], [1, 8, 9, 2]]])
       opts = [strides: [2, 1, 1], padding: :valid, window_dilations: [1, 2, 2]]

@@ -1,6 +1,7 @@
 defmodule Torchx.NxLinAlgTest do
   use Torchx.Case, async: true
 
+  @tag skip_mps: :double_overflow
   describe "matrix_power" do
     test "integers" do
       assert_all_close(
@@ -49,12 +50,14 @@ defmodule Torchx.NxLinAlgTest do
       assert_all_close(result, Nx.tensor([1.33333337, -0.6666666, 2.6666667, -1.33333]))
     end
 
+    @tag skip_mps: :type_not_supported
     test "base case 1D (f64)" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
       %{type: {:f, 64}} = result = Nx.LinAlg.triangular_solve(a, Nx.tensor([1, 2, 1]))
       assert_all_close(result, Nx.tensor([1.0, 1.0, -1.0]))
     end
 
+    @tag skip_mps: :equality_failure
     test "base case 2D" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [0, 1, 1]])
       b = Nx.tensor([[1, 2, 3], [2, 2, 4], [2, 0, 1]])
@@ -95,6 +98,7 @@ defmodule Torchx.NxLinAlgTest do
       end
     end
 
+    @tag skip_mps: :type_not_supported
     test "transform_a: :transpose" do
       a = Nx.tensor([[1, 1, 1], [0, 1, 1], [0, 0, 1]], type: {:f, 64})
       b = Nx.tensor([1, 2, 1])
@@ -103,6 +107,7 @@ defmodule Torchx.NxLinAlgTest do
       assert_all_close(result, Nx.tensor([1.0, 1.0, -1.0]))
     end
 
+    @tag skip_mps: :type_not_supported
     test "explicit transform_a: :none" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
       b = Nx.tensor([1, 2, 1])
@@ -111,6 +116,7 @@ defmodule Torchx.NxLinAlgTest do
       assert_all_close(result, Nx.tensor([1.0, 1.0, -1.0]))
     end
 
+    @tag skip_mps: :equality_failure
     test "explicit left_side: true" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 2, 1]])
       b = Nx.tensor([[0, 2], [3, 0], [0, 0]])
@@ -126,6 +132,7 @@ defmodule Torchx.NxLinAlgTest do
       )
     end
 
+    @tag skip_mps: :type_not_supported
     test "validates transform_a" do
       assert_raise ArgumentError,
                    "invalid value for :transform_a option, expected :none, :transpose, or :conjugate, got: :other",
@@ -146,11 +153,12 @@ defmodule Torchx.NxLinAlgTest do
     end
 
     test "base case 1D (f64)" do
-      a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
+      a = Nx.tensor([[1.0, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
       %{type: {:f, 64}} = result = Nx.LinAlg.solve(a, Nx.tensor([1, 2, 1]))
       assert_all_close(result, Nx.tensor([1.0, 1.0, -1.0]))
     end
 
+    @tag skip_mps: :equality_failure
     test "base case 2D" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [0, 1, 1]])
       b = Nx.tensor([[1, 2, 3], [2, 2, 4], [2, 0, 1]])
@@ -169,7 +177,7 @@ defmodule Torchx.NxLinAlgTest do
 
   describe "invert" do
     test "works for matrix" do
-      a = Nx.tensor([[1, 0, 0, 0], [2, 1, 0, 0], [1, 0, 1, 0], [1, 1, 1, 1]])
+      a = Nx.tensor([[1.0, 0, 0, 0], [2, 1, 0, 0], [1, 0, 1, 0], [1, 1, 1, 1]])
       a_inv = Nx.LinAlg.invert(a)
 
       assert_all_close(Nx.dot(a, a_inv), Nx.eye(Nx.shape(a)))
@@ -231,13 +239,14 @@ defmodule Torchx.NxLinAlgTest do
     end
   end
 
+  @tag skip_mps: :equality_failure
   describe "svd" do
     test "factors square matrix" do
       t = Nx.tensor([[1.0, 0, 0], [0, 1, 0], [0, 0, -1]])
       {u, s, vt} = Nx.LinAlg.svd(t)
 
-      assert_all_close(u, Nx.tensor([[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
-      assert_all_close(s, Nx.tensor([1, 1, 1]))
+      assert_all_close(u, Nx.tensor([[1.0, 0, 0], [0, 1, 0], [0, 0, 1]]))
+      assert_all_close(s, Nx.tensor([1.0, 1, 1]))
 
       assert_all_close(
         vt,
@@ -255,8 +264,8 @@ defmodule Torchx.NxLinAlgTest do
       t = Nx.tensor([[2.0, 0, 0], [0, 3, 0], [0, 0, -1], [0, 0, 0]])
       {u, s, vt} = Nx.LinAlg.svd(t)
 
-      assert_all_close(u, Nx.tensor([[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]))
-      assert_all_close(s, Nx.tensor([3, 2, 1]))
+      assert_all_close(u, Nx.tensor([[0.0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]))
+      assert_all_close(s, Nx.tensor([3.0, 2, 1]))
 
       assert_all_close(
         vt,
