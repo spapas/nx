@@ -1026,6 +1026,7 @@ defmodule Torchx.NxTest do
     end
   end
 
+  @tag skip_mps: :type_not_supported
   describe "window_max" do
     test "works with default opts" do
       result =
@@ -1069,7 +1070,6 @@ defmodule Torchx.NxTest do
       )
     end
 
-    @tag skip_mps: :type_not_supported
     test "works with non-default options" do
       t = Nx.tensor([[[4, 2, 1, 3], [4, 2, 1, 7]], [[1, 2, 5, 7], [1, 8, 9, 2]]])
       opts = [strides: [2, 1, 1], padding: :valid, window_dilations: [1, 2, 2]]

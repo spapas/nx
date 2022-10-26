@@ -60,7 +60,18 @@ defmodule Torchx.NxDoctestTest do
                      sinh: 1,
                      is_infinity: 1,
                      window_max: 3,
-                     dot: 6
+                     dot: 6,
+                     standard_deviation: 2,
+                     acosh: 1,
+                     clip: 3,
+                     make_diagonal: 2,
+                     take: 3,
+                     phase: 1,
+                     sqrt: 1,
+                     indexed_put: 3,
+                     random_uniform: 4,
+                     tan: 1,
+                     median: 2
                    ]
                  else
                    []
