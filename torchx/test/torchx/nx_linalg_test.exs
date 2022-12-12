@@ -49,12 +49,14 @@ defmodule Torchx.NxLinAlgTest do
       assert_all_close(result, Nx.tensor([1.33333337, -0.6666666, 2.6666667, -1.33333]))
     end
 
+    @tag :skip_mps
     test "base case 1D (f64)" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
       %{type: {:f, 64}} = result = Nx.LinAlg.triangular_solve(a, Nx.tensor([1, 2, 1]))
       assert_all_close(result, Nx.tensor([1.0, 1.0, -1.0]))
     end
 
+    @tag :skip_mps_all_close
     test "base case 2D" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [0, 1, 1]])
       b = Nx.tensor([[1, 2, 3], [2, 2, 4], [2, 0, 1]])
@@ -96,7 +98,7 @@ defmodule Torchx.NxLinAlgTest do
     end
 
     test "transform_a: :transpose" do
-      a = Nx.tensor([[1, 1, 1], [0, 1, 1], [0, 0, 1]], type: {:f, 64})
+      a = Nx.tensor([[1, 1, 1], [0, 1, 1], [0, 0, 1]])
       b = Nx.tensor([1, 2, 1])
       result = Nx.LinAlg.triangular_solve(a, b, transform_a: :transpose, lower: false)
 
@@ -104,13 +106,14 @@ defmodule Torchx.NxLinAlgTest do
     end
 
     test "explicit transform_a: :none" do
-      a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
+      a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]])
       b = Nx.tensor([1, 2, 1])
       result = Nx.LinAlg.triangular_solve(a, b, transform_a: :none)
 
       assert_all_close(result, Nx.tensor([1.0, 1.0, -1.0]))
     end
 
+    @tag :skip_mps_all_close
     test "explicit left_side: true" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 2, 1]])
       b = Nx.tensor([[0, 2], [3, 0], [0, 0]])
@@ -130,7 +133,7 @@ defmodule Torchx.NxLinAlgTest do
       assert_raise ArgumentError,
                    "invalid value for :transform_a option, expected :none, :transpose, or :conjugate, got: :other",
                    fn ->
-                     a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
+                     a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]])
                      Nx.LinAlg.triangular_solve(a, Nx.tensor([1, 2, 1]), transform_a: :other)
                    end
     end
@@ -145,6 +148,7 @@ defmodule Torchx.NxLinAlgTest do
       assert_all_close(result, Nx.tensor([1.33333337, -0.6666666, 2.6666667, -1.33333]))
     end
 
+    @tag :skip_mps
     test "base case 1D (f64)" do
       a = Nx.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 1]], type: {:f, 64})
       %{type: {:f, 64}} = result = Nx.LinAlg.solve(a, Nx.tensor([1, 2, 1]))
@@ -185,7 +189,9 @@ defmodule Torchx.NxLinAlgTest do
 
   describe "qr" do
     test "property" do
-      for _ <- 1..10, type <- [{:f, 32}, {:c, 64}] do
+      skip_mps = Application.get_env(:torchx, :skip_mps)
+
+      for _ <- 1..10, type <- [{:f, 32}, {:c, 64}], not (skip_mps and type == {:c, 64}) do
         square = Nx.random_uniform({4, 4}, type: type)
         tall = Nx.random_uniform({4, 3}, type: type)
 
@@ -206,7 +212,9 @@ defmodule Torchx.NxLinAlgTest do
 
   describe "lu" do
     test "property" do
-      for _ <- 1..20, type <- [{:f, 32}, {:c, 64}] do
+      skip_mps = Application.get_env(:torchx, :skip_mps)
+
+      for _ <- 1..20, type <- [{:f, 32}, {:c, 64}], not (skip_mps and type == {:c, 64}) do
         a = Nx.random_uniform({3, 3}, type: type)
         {p, l, u} = Nx.LinAlg.lu(a)
 

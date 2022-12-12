@@ -51,6 +51,7 @@ defmodule TorchxTest do
   end
 
   describe "indexed_add" do
+    @tag :skip_mps_indexed
     test "clamps when out of bounds" do
       t = Nx.tensor([[1, 2], [3, 4]])
 
@@ -61,6 +62,7 @@ defmodule TorchxTest do
   end
 
   describe "indexed_put" do
+    @tag :skip_mps_indexed
     test "clamps when out of bounds" do
       t = Nx.tensor([[1, 2], [3, 4]])
 
@@ -71,6 +73,7 @@ defmodule TorchxTest do
   end
 
   describe "gather" do
+    @tag :skip_mps_indexed
     test "raises when out of bounds" do
       t = Nx.tensor([[1, 2], [3, 4]])
 
@@ -93,6 +96,7 @@ defmodule TorchxTest do
   end
 
   describe "bool type" do
+    @tag :skip_mps
     test "adds correctly" do
       t_tx =
         {2, 3}
@@ -109,6 +113,7 @@ defmodule TorchxTest do
       assert_equal(Nx.add(t, t), Nx.tensor([[0, 2, 2], [2, 2, 2]]))
     end
 
+    @tag :skip_mps
     test "works with argmax and argmin" do
       t =
         {2, 3}

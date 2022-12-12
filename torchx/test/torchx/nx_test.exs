@@ -26,6 +26,19 @@ defmodule Torchx.NxTest do
   ]
   @unary_ops [:abs, :bitwise_not, :ceil, :floor, :negate, :round, :sign, :argmax, :argmin]
 
+  @skip_mps_binary_ops [
+    :remainder,
+    :left_shift,
+    :right_shift,
+    :power,
+    :atan2
+  ]
+
+  @skip_mps_unary_ops [
+    :argmax,
+    :argmin
+  ]
+
   defp test_binary_op(op, data_a \\ [[5, 6], [7, 8]], data_b \\ [[1, 2], [3, 4]], type_a, type_b) do
     a = Nx.tensor(data_a, type: type_a)
     b = Nx.tensor(data_b, type: type_b)
@@ -50,11 +63,17 @@ defmodule Torchx.NxTest do
   end
 
   describe "binary ops" do
+    skip_mps = Application.get_env(:torchx, :skip_mps)
+
     for op <- @ops ++ @logical_ops,
         type_a <- @types,
         type_b <- @types,
+        merge_type <- [Nx.Type.merge(type_a, type_b)],
         not (op in (@ops_unimplemented_for_bfloat ++ @ops_with_bfloat_specific_result) and
-               Nx.Type.merge(type_a, type_b) == {:bf, 16}) do
+               merge_type == {:bf, 16}) and
+          not (skip_mps and
+                 (merge_type in [f: 64, c: 64, c: 128] or op in @skip_mps_binary_ops or
+                    type_a == {:bf, 16} or type_b == {:bf, 16})) do
       test "#{op}(#{Nx.Type.to_string(type_a)}, #{Nx.Type.to_string(type_b)})" do
         op = unquote(op)
         type_a = unquote(type_a)
@@ -68,7 +87,8 @@ defmodule Torchx.NxTest do
     for op <- @ops ++ @logical_ops,
         type <- @types,
         not (op in (@ops_unimplemented_for_bfloat ++ @ops_with_bfloat_specific_result) and
-               type == {:bf, 16}) do
+               type == {:bf, 16}) and
+          not (skip_mps and (type in [bf: 16, f: 64, c: 64, c: 128] or op in @skip_mps_unary_ops)) do
       test "#{op}(#{Nx.Type.to_string(type)}, #{Nx.Type.to_string(type)}) broadcast" do
         op = unquote(op)
         type = unquote(type)
@@ -410,6 +430,7 @@ defmodule Torchx.NxTest do
       assert_equal(out, Nx.tensor([[1, 1], [2, 2], [3, 3]]))
     end
 
+    @tag :skip_mps_dot_floating
     test "dot with vectors" do
       t1 = Nx.tensor([1, 2, 3])
       t2 = Nx.tensor([4, 5, 6])
@@ -419,6 +440,7 @@ defmodule Torchx.NxTest do
       assert_equal(out, Nx.tensor(32))
     end
 
+    @tag :skip_mps_dot_floating
     test "dot with matrices" do
       t1 = Nx.tensor([[1, 2], [3, 4]])
       t2 = Nx.tensor([[5, 6], [7, 8]])
@@ -428,6 +450,7 @@ defmodule Torchx.NxTest do
       assert_equal(out, Nx.tensor([[19, 22], [43, 50]]))
     end
 
+    @tag :skip_mps_dot_floating
     test "dot with vector and scalar" do
       t = Nx.tensor([[1, 2, 3]])
       assert Nx.shape(t) == {1, 3}
@@ -437,6 +460,7 @@ defmodule Torchx.NxTest do
       assert_equal(out, Nx.tensor([[3, 6, 9]]))
     end
 
+    @tag :skip_mps_dot_floating
     test "dot with multiple batch axes" do
       u = Nx.tensor([[[1, 1]], [[2, 2]]])
       v = Nx.tensor([[[1, 2]], [[1, 2]]])
@@ -444,6 +468,7 @@ defmodule Torchx.NxTest do
       assert_equal(Nx.tensor([[3], [6]]), Nx.dot(u, [2], [0, 1], v, [2], [0, 1]))
     end
 
+    @tag :skip_mps_dot_floating
     test "dot does not re-sort the contracting axes" do
       t1 = Nx.iota({2, 7, 8, 3, 1})
       t2 = Nx.iota({1, 8, 3, 7, 3})
@@ -469,6 +494,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag :skip_mps_dot_floating
     test "dot with mixed backends" do
       t1 = Nx.tensor([1, 2, 3], backend: Torchx.Backend)
       t2 = Nx.tensor([4, 5, 6], backend: Nx.BinaryBackend)
@@ -680,8 +706,10 @@ defmodule Torchx.NxTest do
       assert Nx.as_type(non_finite, {:f, 16}) |> Nx.backend_transfer() ==
                Nx.as_type(non_finite_binary_backend, {:f, 16})
 
-      assert Nx.as_type(non_finite, {:f, 64}) |> Nx.backend_transfer() ==
-               Nx.as_type(non_finite_binary_backend, {:f, 64})
+      unless Application.get_env(:torchx, :skip_mps) do
+        assert Nx.as_type(non_finite, {:f, 64}) |> Nx.backend_transfer() ==
+                 Nx.as_type(non_finite_binary_backend, {:f, 64})
+      end
     end
   end
 
@@ -1021,6 +1049,7 @@ defmodule Torchx.NxTest do
     end
   end
 
+  @tag :skip_mps
   describe "window_max" do
     test "works with default opts" do
       result =
@@ -1081,6 +1110,7 @@ defmodule Torchx.NxTest do
     end
   end
 
+  @tag :skip_mps
   describe "window_min" do
     test "works with default opts" do
       result =

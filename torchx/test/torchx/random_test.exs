@@ -1,6 +1,8 @@
 defmodule Torchx.Nx.RandomTest do
   use Torchx.Case, async: true
 
+  @moduletag :skip_mps
+
   doctest Nx.Random, except: [normal: 2, normal: 4]
 
   describe "key/1" do
@@ -122,10 +124,12 @@ defmodule Torchx.Nx.RandomTest do
       )
 
       # upcast
-      assert_equal(
-        Nx.Random.uniform_split(key, 0.0, 100.0, type: :f64),
-        Nx.tensor(49.70372348385783, type: :f64)
-      )
+      unless Application.get_env(:torchx, :skip_mps) do
+        assert_equal(
+          Nx.Random.uniform_split(key, 0.0, 100.0, type: :f64),
+          Nx.tensor(49.70372348385783, type: :f64)
+        )
+      end
     end
 
     test "normal" do
@@ -159,16 +163,18 @@ defmodule Torchx.Nx.RandomTest do
       )
 
       # upcast
-      assert_equal(
-        Nx.Random.normal_split(key, 0, 100, type: :f64),
-        Nx.tensor(-0.7426619192938216, type: :f64)
-      )
+      unless Application.get_env(:torchx, :skip_mps) do
+        assert_equal(
+          Nx.Random.normal_split(key, 0, 100, type: :f64),
+          Nx.tensor(-0.7426619192938216, type: :f64)
+        )
 
-      # complex
-      assert_all_close(
-        Nx.Random.normal_split(key, 0.0, 100.0, type: :c64),
-        Nx.complex(-0.74267750, 6.5133848)
-      )
+        # complex
+        assert_all_close(
+          Nx.Random.normal_split(key, 0.0, 100.0, type: :c64),
+          Nx.complex(-0.74267750, 6.5133848)
+        )
+      end
     end
   end
 

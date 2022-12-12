@@ -459,6 +459,8 @@ defmodule Torchx.Backend do
 
     axis_offset = Nx.rank(i) - 1
 
+    {device, _ref} = from_nx(i)
+
     indices =
       axes_range
       |> Enum.map(fn
@@ -468,13 +470,13 @@ defmodule Torchx.Backend do
         current when current < axis ->
           indices_for_axis
           |> Nx.shape()
-          |> Nx.iota(axis: current, backend: __MODULE__)
+          |> Nx.iota(axis: current, backend: {__MODULE__, device: device})
           |> Nx.reshape({num_elements, 1})
 
         current when current > axis ->
           indices_for_axis
           |> Nx.shape()
-          |> Nx.iota(axis: current + axis_offset, backend: __MODULE__)
+          |> Nx.iota(axis: current + axis_offset, backend: {__MODULE__, device: device})
           |> Nx.reshape({num_elements, 1})
       end)
       |> Nx.concatenate(axis: 1)
@@ -529,26 +531,34 @@ defmodule Torchx.Backend do
 
     # Index limit validation
 
+    {device, _ref} = from_nx(idx)
+
     ndims = tuple_size(shape)
 
     flattened_idx = Nx.reshape(idx, {div(Nx.size(idx), ndims), ndims})
-    shape_tensor = shape |> Tuple.to_list() |> Nx.tensor()
+    shape_tensor = shape |> Tuple.to_list() |> Nx.tensor(backend: {__MODULE__, device: device})
 
     upper_clamped_idx =
       flattened_idx
       |> Nx.greater_equal(shape_tensor)
-      |> Nx.select(Nx.subtract(shape_tensor, 1), flattened_idx)
+      |> Nx.select(
+        Nx.subtract(shape_tensor, Nx.tensor(1, backend: {__MODULE__, device: device})),
+        flattened_idx
+      )
 
-    lower_clamp_selector = Nx.less(upper_clamped_idx, 0)
+    lower_clamp_selector =
+      Nx.less(upper_clamped_idx, Nx.tensor(0, backend: {__MODULE__, device: device}))
 
     fully_clamped_idx =
-      lower_clamp_selector |> Nx.select(0, upper_clamped_idx) |> Nx.reshape(idx.shape)
+      lower_clamp_selector
+      |> Nx.select(Nx.tensor(0, backend: {__MODULE__, device: device}), upper_clamped_idx)
+      |> Nx.reshape(idx.shape)
 
     # Actual conversion algorithm
 
     linear_indices_offsets =
       shape
-      |> linear_indices_offsets()
+      |> linear_indices_offsets(device)
       |> from_nx()
 
     lin_idx_num_elements =
@@ -560,7 +570,7 @@ defmodule Torchx.Backend do
     |> Torchx.reshape({lin_idx_num_elements})
   end
 
-  defp linear_indices_offsets(shape) do
+  defp linear_indices_offsets(shape, device) do
     # The offsets tensor calculated below follows a formula in which we
     # multiply the index along each axis by the number of elements contained in all following axes
     # For example, for a {3, 5, 7, 2} tensor, the offsets tensor is [70, 14, 2, 1]
@@ -583,7 +593,7 @@ defmodule Torchx.Backend do
         {[multiplier | acc], multiplier * x}
       end)
 
-    Nx.tensor(offsets_list, backend: __MODULE__)
+    Nx.tensor(offsets_list, backend: {__MODULE__, device: device})
   end
 
   @impl true

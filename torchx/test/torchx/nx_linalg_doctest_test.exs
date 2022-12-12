@@ -32,6 +32,11 @@ defmodule Torchx.NxLinAlgDoctestTest do
     norm: 2
   ]
 
+  @mps_incompatible if(Torchx.default_device() == :mps,
+                      do: [adjoint: 1],
+                      else: []
+                    )
+
   setup do
     Nx.default_backend(Torchx.Backend)
     :ok
@@ -42,4 +47,5 @@ defmodule Torchx.NxLinAlgDoctestTest do
       @type_incompatibility_doctests
       |> Kernel.++(@rounding_error_doctests)
       |> Kernel.++(@property_doctests)
+      |> Kernel.++(@mps_incompatible)
 end

@@ -10,6 +10,8 @@ defmodule Torchx.ComplexTest do
   @arg Complex.new(2, 3)
   @arg2 Complex.new(-2, 7)
 
+  @moduletag :skip_mps
+
   describe "creation" do
     @tag :focus
     test "constant" do
