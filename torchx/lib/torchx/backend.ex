@@ -1105,17 +1105,30 @@ defmodule Torchx.Backend do
     left_axes = translate_to_inner_axes(left_axes, left_batched_axes)
     right_axes = translate_to_inner_axes(right_axes, right_batched_axes)
 
-    left_tx = from_nx(left)
-    right_tx = from_nx(right)
+    {left_device, _} = left_tx = from_nx(left)
+    {right_device, _} = right_tx = from_nx(right)
 
-    Torchx.tensordot(
-      to_typed_ref(left_tx, left_type, out_type),
-      to_typed_ref(right_tx, right_type, out_type),
-      left_axes,
-      left_batched_axes,
-      right_axes,
-      right_batched_axes
-    )
+    out_type_floating =
+      case out_type do
+        {int, _} when int in [:s, :u] and left_device == :mps and right_device == :mps ->
+          {:f, 32}
+
+        _ ->
+          out_type
+      end
+
+    result =
+      Torchx.tensordot(
+        to_typed_ref(left_tx, left_type, out_type_floating),
+        to_typed_ref(right_tx, right_type, out_type_floating),
+        left_axes,
+        left_batched_axes,
+        right_axes,
+        right_batched_axes
+      )
+
+    result
+    |> to_typed_ref(out_type_floating, out_type)
     |> to_nx(out)
   end
 

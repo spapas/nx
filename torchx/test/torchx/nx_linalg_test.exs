@@ -2,6 +2,7 @@ defmodule Torchx.NxLinAlgTest do
   use Torchx.Case, async: true
 
   describe "matrix_power" do
+    @describetag :skip_mps
     test "integers" do
       assert_all_close(
         Nx.LinAlg.matrix_power(Nx.tensor([[1, 2], [3, 4]]), 0),

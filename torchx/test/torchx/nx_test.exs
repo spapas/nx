@@ -27,16 +27,22 @@ defmodule Torchx.NxTest do
   @unary_ops [:abs, :bitwise_not, :ceil, :floor, :negate, :round, :sign, :argmax, :argmin]
 
   @skip_mps_binary_ops [
+    :equal,
+    :not_equal,
+    :greater,
     :remainder,
     :left_shift,
     :right_shift,
+    :quotient,
     :power,
     :atan2
   ]
 
   @skip_mps_unary_ops [
     :argmax,
-    :argmin
+    :argmin,
+    :fft,
+    :sign
   ]
 
   defp test_binary_op(op, data_a \\ [[5, 6], [7, 8]], data_b \\ [[1, 2], [3, 4]], type_a, type_b) do
@@ -88,7 +94,7 @@ defmodule Torchx.NxTest do
         type <- @types,
         not (op in (@ops_unimplemented_for_bfloat ++ @ops_with_bfloat_specific_result) and
                type == {:bf, 16}) and
-          not (skip_mps and (type in [bf: 16, f: 64, c: 64, c: 128] or op in @skip_mps_unary_ops)) do
+          not (skip_mps and (type in [bf: 16, f: 64, c: 64, c: 128] or op in @skip_mps_binary_ops)) do
       test "#{op}(#{Nx.Type.to_string(type)}, #{Nx.Type.to_string(type)}) broadcast" do
         op = unquote(op)
         type = unquote(type)
@@ -118,9 +124,12 @@ defmodule Torchx.NxTest do
 
   # quotient/2 works only with integers, so we put it here.
   describe "binary bitwise ops" do
+    skip_mps = Application.get_env(:torchx, :skip_mps)
+
     for op <- @bitwise_ops ++ [:quotient],
         type_a <- @ints,
-        type_b <- @ints do
+        type_b <- @ints,
+        not (skip_mps and op in @skip_mps_binary_ops) do
       test "#{op}(#{Nx.Type.to_string(type_a)}, #{Nx.Type.to_string(type_b)})" do
         op = unquote(op)
         type_a = unquote(type_a)
@@ -132,8 +141,11 @@ defmodule Torchx.NxTest do
   end
 
   describe "unary ops" do
+    skip_mps = Application.get_env(:torchx, :skip_mps)
+
     for op <- @unary_ops -- [:bitwise_not],
-        type <- @types do
+        type <- @types,
+        not (skip_mps and (type in [bf: 16, f: 64, c: 64, c: 128] or op in @skip_mps_unary_ops)) do
       test "#{op}(#{Nx.Type.to_string(type)})" do
         test_unary_op(unquote(op), unquote(type))
       end
@@ -155,6 +167,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag :skip_mps
     test "fft" do
       assert_all_close(
         Nx.fft(Nx.tensor([1, 1, 0, 0]), length: 5),
@@ -172,6 +185,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag :skip_mps
     test "fft - n dim tensor" do
       assert_all_close(
         Nx.fft(
@@ -264,6 +278,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag :skip_mps
     test "ifft" do
       assert_all_close(
         Nx.ifft(~V[5 5 5 5 5],
@@ -283,6 +298,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag :skip_mps
     test "ifft - n dim tensor" do
       assert_all_close(
         Nx.ifft(
@@ -382,6 +398,7 @@ defmodule Torchx.NxTest do
   # I.e. 1/5 == 0.19921875 in direct bf16 division and 0.2001953125 when dividing floats
   # converting them to bf16 afterwards (PyTorch style).
   describe "bfloat16" do
+    @describetag :skip_mps
     for type_a <- @bf16_and_ints,
         type_b <- @bf16_and_ints,
         type_a == {:bf, 16} or type_b == {:bf, 16} do
@@ -547,12 +564,14 @@ defmodule Torchx.NxTest do
       assert_equal(Nx.mean(t, axes: [:x]), Nx.tensor(2))
     end
 
+    @tag :skip_mps_quotient_s64
     test "quotient when dividing scalars" do
       out = Nx.quotient(11, 2)
 
       assert_equal(out, Nx.tensor(5))
     end
 
+    @tag :skip_mps_quotient_s64
     test "quotient when dividing tensors and scalars" do
       t1 = Nx.tensor([2, 4, 5])
 
@@ -561,6 +580,7 @@ defmodule Torchx.NxTest do
       assert_equal(out, Nx.tensor([1, 2, 2]))
     end
 
+    @tag :skip_mps_quotient_s64
     test "quotient when dividing tensors" do
       left = Nx.tensor([[10, 20]])
       right = Nx.tensor([[1], [2]])
@@ -570,6 +590,7 @@ defmodule Torchx.NxTest do
       assert_equal(out, Nx.tensor([[10, 20], [5, 10]]))
     end
 
+    @tag :skip_mps_quotient_s64
     test "quotient fails when using unsigned integers" do
       assert_equal(
         Nx.tensor([[10, 20], [5, 10]], type: {:u, 32}),
@@ -1034,6 +1055,7 @@ defmodule Torchx.NxTest do
       )
     end
 
+    @tag :skip_mps
     test "input_dilation" do
       t = Nx.iota({1, 1, 1, 2, 3})
       k = Nx.tensor([[[[[1, -1], [-1, 1]]]]])
@@ -1049,8 +1071,8 @@ defmodule Torchx.NxTest do
     end
   end
 
-  @tag :skip_mps
   describe "window_max" do
+    @describetag :skip_mps
     test "works with default opts" do
       result =
         Nx.window_max(Nx.tensor([[[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]]), {1, 2, 1})
@@ -1110,8 +1132,8 @@ defmodule Torchx.NxTest do
     end
   end
 
-  @tag :skip_mps
   describe "window_min" do
+    @describetag :skip_mps
     test "works with default opts" do
       result =
         Nx.window_min(Nx.tensor([[[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]]), {1, 2, 1})
@@ -1172,6 +1194,7 @@ defmodule Torchx.NxTest do
   end
 
   describe "window_sum" do
+    @describetag :skip_mps
     test "works with simple params" do
       t = Nx.tensor([[[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]])
       result = Nx.window_sum(t, {1, 2, 1})
@@ -1222,6 +1245,7 @@ defmodule Torchx.NxTest do
   end
 
   describe "window_product" do
+    @describetag :skip_mps
     test "works with simple params" do
       t = Nx.tensor([[[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]])
       result = Nx.window_product(t, {1, 2, 1})
