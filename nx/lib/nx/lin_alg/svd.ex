@@ -24,13 +24,17 @@ defmodule Nx.LinAlg.SVD do
   defn svd(input_tensor, opts \\ []) do
     validate_opts(opts)
 
-    {is_flipped, tensor} =
-      case Nx.shape(input_tensor) do
+    # This is so we support {..., m, n} shapes
+    m = Nx.axis_size(input_tensor, -2)
+    n = Nx.axis_size(input_tensor, -1)
+
+    {is_flipped, tensor, {m, n}} =
+      case {m, n} do
         {m, n} when m < n ->
-          {true, Nx.LinAlg.adjoint(input_tensor)}
+          {true, Nx.LinAlg.adjoint(input_tensor), {n, m}}
 
         _ ->
-          {false, input_tensor}
+          {false, input_tensor, {m, n}}
       end
 
     # We always return full matrices for retrocompatibility.
@@ -38,12 +42,12 @@ defmodule Nx.LinAlg.SVD do
     # as an option (i.e. mode: :complete | :reduced)
 
     {reduce_to_square, q, u_null, a} =
-      case Nx.shape(tensor) do
+      case {m, n} do
         {m, n} when m > n ->
           {q_full, a_full} = Nx.LinAlg.qr(tensor, mode: :complete)
-          q = q_full[[0..-1//1, 0..(n - 1)//1]]
-          u_null = q_full[[0..-1//1, n..-1//1]]
-          a = a_full[0..(n - 1)//1]
+          q = Nx.slice_along_axis(q_full, 0, n, axis: -1)
+          u_null = Nx.slice_along_axis(q_full, n, m - n, axis: -1)
+          a = Nx.slice_along_axis(a_full, 0, n, axis: -2)
           {true, q, u_null, a}
 
         {n, n} ->
@@ -55,7 +59,7 @@ defmodule Nx.LinAlg.SVD do
     u =
       case reduce_to_square do
         true ->
-          u = Nx.dot(q, u)
+          u = Nx.dot(q, [-1], batch_axes(q), u, [-2], batch_axes(u))
           Nx.concatenate([u, u_null], axis: -1)
 
         false ->
@@ -77,8 +81,14 @@ defmodule Nx.LinAlg.SVD do
     opts[:max_iter] || raise ArgumentError, "missing option :max_iter"
   end
 
+  deftransformp batch_axes(t) do
+    t
+    |> Nx.axes()
+    |> Enum.drop(-2)
+  end
+
   defnp svd_tall_and_square(a, opts \\ []) do
-    {_m, n} = Nx.shape(a)
+    n = Nx.axis_size(a, -1)
     {u, h} = qdwh(a, opts)
     # ensure H is hermitian
     h = (h + Nx.LinAlg.adjoint(h)) / 2
@@ -90,9 +100,9 @@ defmodule Nx.LinAlg.SVD do
 
     # sort s and v according to
     sort_idx = Nx.argsort(s, direction: :desc)
-    s_out = Nx.take(s, sort_idx)
-    v_out = Nx.take(v, sort_idx, axis: 1)
-    u_out = Nx.dot(u, v_out)
+    s_out = Nx.take(s, sort_idx, axis: -1)
+    v_out = Nx.take(v, sort_idx, axis: -2)
+    u_out = Nx.dot(u, [-1], batch_axes(u), v_out, [-2], batch_axes(v_out))
 
     u_out = Nx.select(s[0] < n * @eps * s_out[0], correct_rank_deficiency(u_out), u_out)
     {u_out, s_out, v_out}
@@ -100,7 +110,7 @@ defmodule Nx.LinAlg.SVD do
 
   defn qdwh(x, opts \\ []) do
     # reference implementation taken from Jax
-    alpha = Nx.sqrt(Nx.LinAlg.norm(x, ord: 1)) * Nx.sqrt(Nx.LinAlg.norm(x, ord: :inf))
+    alpha = Nx.sqrt(Nx.LinAlg.norm(x, ord: 1, axes: [-2, -1])) * Nx.sqrt(Nx.LinAlg.norm(x, ord: :inf, axes: [-2, -1]))
     l = @eps
     u = x / alpha
     tol_l = 5 * @eps
@@ -136,8 +146,8 @@ defmodule Nx.LinAlg.SVD do
           end
 
         iterating_l = Nx.abs(1.0 - l) > tol_l
-        iterating_u = Nx.LinAlg.norm(u - u_prev) > tol_norm
-        is_unconverged = iterating_l or iterating_u
+        iterating_u = Nx.LinAlg.norm(u - u_prev, axes: [-2, -1]) > tol_norm
+        is_unconverged = Nx.any(iterating_l) or Nx.any(iterating_u)
         is_not_max_iteration = iter_idx < max_iter
         {u, l, iter_idx + 1, is_unconverged, is_not_max_iteration, max_iter}
       end
