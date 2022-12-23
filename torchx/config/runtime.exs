@@ -1,0 +1,1 @@
+System.put_env("PYTORCH_ENABLE_MPS_FALLBACK", "1")
