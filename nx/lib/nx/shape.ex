@@ -70,6 +70,16 @@ defmodule Nx.Shape do
     shape
     |> Tuple.to_list()
     |> Enum.zip_with(names, fn
+      number, %Nx.Defn.Einsum.Index{type: type} ->
+        Inspect.Algebra.concat([
+          open,
+          "einsum_index(",
+          Atom.to_string(type),
+          "): ",
+          Integer.to_string(number),
+          close
+        ])
+
       number, nil ->
         Inspect.Algebra.concat([open, Integer.to_string(number), close])
 
@@ -1066,6 +1076,24 @@ defmodule Nx.Shape do
       Enum.with_index(names)[axis]
     else
       raise ArgumentError, "key #{inspect(axis)} not found in tensor with names #{inspect(names)}"
+    end
+  end
+
+  def normalize_axis(_shape, %Nx.Defn.Einsum.Index{name: name} = index, names) do
+    axis =
+      Enum.find_value(names, fn
+        %Nx.Defn.Einsum.Index{name: ^name, axis: axis} ->
+          axis
+
+        _ ->
+          nil
+      end)
+
+    if axis do
+      axis
+    else
+      raise ArgumentError,
+            "invalid Einsum index #{inspect(index)} for tensor with indices #{inspect(names)}"
     end
   end
 

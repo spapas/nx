@@ -51,6 +51,11 @@ defmodule Nx.Tensor do
   def fetch(tensor, _.._//_ = range),
     do: {:ok, fetch_axes(tensor, [{0, range}])}
 
+  def fetch(tensor, %Nx.Defn.Einsum.Index{} = index), do: Nx.Defn.Einsum.fetch(tensor, index)
+
+  def fetch(tensor, [%Nx.Defn.Einsum.Index{} | _] = indices),
+    do: Nx.Defn.Einsum.fetch(tensor, indices)
+
   def fetch(tensor, []),
     do: {:ok, tensor}
 
