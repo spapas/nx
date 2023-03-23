@@ -6076,9 +6076,6 @@ defmodule Nx do
     %T{shape: true_shape, names: true_names} = on_true
     %T{shape: false_shape, names: false_names} = on_false
 
-    # if pred is scalar, expected shape is the broadcast between true and false
-    # otherwise, expected shape is the pred shape.
-
     output_type = binary_type(on_true, on_false)
 
     {output_shape, output_names} =
