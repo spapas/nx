@@ -1140,6 +1140,8 @@ defmodule Nx.Shape do
       [2, 3, 4]
 
   """
+  def broadcast_axes(shape, new_shape)
+
   def broadcast_axes(shape, new_shape) when tuple_size(shape) > tuple_size(new_shape) do
     raise ArgumentError,
           "cannot broadcast tensor of dimensions #{inspect(shape)} " <>

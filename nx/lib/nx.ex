@@ -4108,7 +4108,8 @@ defmodule Nx do
     canonical_vectorized_axes =
       Enum.reduce(tensors, initial_vectorized_axes, &combine_vectorized_axes/2)
 
-    Enum.map([first | tensors], fn %T{shape: shape, vectorized_axes: current_axes} = t ->
+    Enum.map([first | tensors], fn %T{shape: shape, vectorized_axes: current_axes, names: names} =
+                                     t ->
       {vectorized_axes, []} =
         Enum.map_reduce(canonical_vectorized_axes, current_axes, fn
           {k, _}, [] ->
@@ -4125,12 +4126,58 @@ defmodule Nx do
         end)
 
       target_shape = List.to_tuple(Keyword.values(vectorized_axes) ++ Tuple.to_list(shape))
+      target_names = List.duplicate(nil, length(vectorized_axes)) ++ names
 
       t
       |> devectorize()
-      |> reshape(target_shape)
+      |> reshape(target_shape, names: target_names)
       |> revectorize_and_validate_sizes(canonical_vectorized_axes, true)
     end)
+  end
+
+  def broadcast_vectors([t]), do: t
+
+  def broadcast_vectors(tensors) when is_list(tensors) do
+    tensors = reshape_vectors(tensors)
+
+    target_vectorized_axes =
+      tensors
+      |> Enum.map(& &1.vectorized_axes)
+      |> Enum.zip_with(&Enum.max_by(&1, fn {_, v} -> v end))
+
+    target_vector_shape =
+      target_vectorized_axes
+      |> Enum.map(fn {_, v} -> v end)
+      |> List.to_tuple()
+
+    offset = tuple_size(target_vector_shape)
+
+    devec =
+      Enum.map(
+        tensors,
+        &devectorize(%{
+          &1
+          | vectorized_axes: Enum.map(&1.vectorized_axes, fn {_, v} -> {nil, v} end)
+        })
+      )
+
+    devec
+    |> Enum.map(fn t ->
+      target_shape =
+        t.shape
+        |> Tuple.to_list()
+        |> Enum.with_index(fn size, idx ->
+          if idx < offset do
+            elem(target_vector_shape, idx)
+          else
+            size
+          end
+        end)
+        |> List.to_tuple()
+
+      broadcast(t, target_shape, names: t.names)
+    end)
+    |> Enum.map(&revectorize_and_validate_sizes(&1, target_vectorized_axes))
   end
 
   defp combine_vectorized_axes(%T{vectorized_axes: right_vectorized_axes}, left_vectorized_axes) do
@@ -5965,16 +6012,72 @@ defmodule Nx do
         f32[3]
         [2.0, 1.0, 2.0]
       >
+
+    ## Vectorized tensors
+
+      iex> pred = Nx.tensor([[1, 0, 1], [2, 0, 0]]) |> Nx.vectorize(:x)
+      iex> on_true = 42
+      iex> on_false = Nx.tensor([1, 2, 3, 4]) |> Nx.vectorize(:y)
+      iex> Nx.select(pred, on_true, on_false)
+      #Nx.Tensor<
+        vectorized[x: 2][y: 4]
+        s64[3]
+        [
+          [
+            [42, 1, 42],
+            [42, 2, 42],
+            [42, 3, 42],
+            [42, 4, 42]
+          ],
+          [
+            [42, 1, 1],
+            [42, 2, 2],
+            [42, 3, 3],
+            [42, 4, 4]
+          ]
+        ]
+      >
+      iex> pred = Nx.vectorize(pred, :z)
+      iex> Nx.select(pred, on_true, on_false)
+      #Nx.Tensor<
+        vectorized[x: 2][z: 3][y: 4]
+        s64
+        [
+          [
+            [42, 42, 42, 42],
+            [1, 2, 3, 4],
+            [42, 42, 42, 42]
+          ],
+          [
+            [42, 42, 42, 42],
+            [1, 2, 3, 4],
+            [1, 2, 3, 4]
+          ]
+        ]
+      >
   """
   @doc type: :element
   def select(pred, on_true, on_false) do
-    %T{shape: pred_shape, names: pred_names} = pred = to_tensor(pred)
-    %T{shape: true_shape, names: true_names} = on_true = to_tensor(on_true)
-    %T{shape: false_shape, names: false_names} = on_false = to_tensor(on_false)
+    [pred, on_true, on_false] = broadcast_vectors([pred, on_true, on_false])
 
-    Nx.Shared.raise_vectorized_not_implemented_yet(pred, __ENV__.function)
-    Nx.Shared.raise_vectorized_not_implemented_yet(on_true, __ENV__.function)
-    Nx.Shared.raise_vectorized_not_implemented_yet(on_false, __ENV__.function)
+    apply_vectorized(pred, fn pred, offset ->
+      apply_vectorized(on_true, fn on_true, ^offset ->
+        apply_vectorized(on_false, fn on_false, ^offset ->
+          devectorized_select(pred, on_true, on_false, offset)
+        end)
+        |> devectorize()
+      end)
+      |> devectorize()
+    end)
+  end
+
+  defp devectorized_select(pred, on_true, on_false, _offset) do
+    %T{shape: pred_shape, names: pred_names} = pred
+    %T{shape: true_shape, names: true_names} = on_true
+    %T{shape: false_shape, names: false_names} = on_false
+
+    # if pred is scalar, expected shape is the broadcast between true and false
+    # otherwise, expected shape is the pred shape.
 
     output_type = binary_type(on_true, on_false)
 
